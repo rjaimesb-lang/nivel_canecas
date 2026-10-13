@@ -14,7 +14,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-st.set_page_config(page_title="Canecas del campus", page_icon="🗑️", layout="wide")
+st.set_page_config(page_title="Canecas del campus de la Universidad Central", page_icon="🗑️", layout="wide")
 
 ZONA_HORARIA = ZoneInfo("America/Bogota")
 SIN_SENAL_MIN = 30  # minutos sin lecturas para considerar que el sensor perdió señal
