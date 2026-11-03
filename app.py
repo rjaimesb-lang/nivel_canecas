@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 # ----- Cambia estos datos -----
-SHEET_ID = "PEGA_AQUI_EL_ID_DE_TU_HOJA"
+SHEET_ID = "https://docs.google.com/spreadsheets/d/1tWx9sWxbX7QzVMrPspHNbhCEZLFyItKxSFOwTxq9u0o/edit?usp=sharing"
 PESTANA = "lecturas"
 UBICACION = "Bloque B, piso 2, junto a la cafetería"
 UMBRAL_ATENCION = 50   # % a partir del cual se muestra "atención"
