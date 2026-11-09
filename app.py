@@ -1,4 +1,6 @@
+import base64
 import math
+import os
 
 import pandas as pd
 import streamlit as st
@@ -6,6 +8,7 @@ import streamlit as st
 # ----- Configuración -----
 SHEET_ID = "1tWx9sWxbX7QzVMrPspHNbhCEZLFyItKxSFOwTxq9u0o"
 PESTANA = "lecturas"
+LOGO = "logo_universidad.png"   # súbelo junto a este archivo (si no existe, no se muestra)
 UMBRAL_ATENCION = 50       # % a partir del cual se muestra "atención"
 UMBRAL_ALERTA = 80         # % a partir del cual se muestra "llena"
 SEGUNDOS_SIN_SENAL = 120   # sin lecturas por más de esto = "sin señal"
@@ -13,7 +16,6 @@ DISTANCIA_VACIA = 26.5     # mismas cifras de la calibración del ESP32
 DISTANCIA_LLENA = 4.9
 
 # C1 es la real (viene de la hoja). Las demás son de ejemplo.
-# "nivel" = % de llenado que se mostrará; "horas" = hace cuántas horas se vació.
 CANECAS = {
     "C1": {"ubicacion": "Bloque B, piso 2, junto a la cafetería", "real": True},
     "C2": {"ubicacion": "Biblioteca, entrada principal", "nivel": 92, "horas": 9, "fase": 0.2},
@@ -32,6 +34,46 @@ if "/d/" in SHEET_ID:
 URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={PESTANA}"
 
 st.set_page_config(page_title="Monitor de canecas", page_icon="🗑️", layout="wide")
+
+ESTILO = """
+<style>
+.cabecera{display:flex;align-items:center;gap:18px;margin-bottom:10px}
+.titulo{font-size:2.1rem;font-weight:700}
+@keyframes pulso{
+  0%{box-shadow:0 0 0 0 rgba(229,57,53,.75)}
+  70%{box-shadow:0 0 0 18px rgba(229,57,53,0)}
+  100%{box-shadow:0 0 0 0 rgba(229,57,53,0)}
+}
+.alerta{background:linear-gradient(90deg,#b71c1c,#e53935);color:#fff;padding:18px 22px;
+  border-radius:14px;margin:8px 0 16px 0;animation:pulso 1.6s infinite}
+.alerta h2{margin:0 0 6px 0;font-size:1.6rem;color:#fff}
+.ruta{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.chip{background:rgba(255,255,255,.2);border-radius:10px;padding:8px 14px;font-weight:600}
+.ok{background:#1b5e20;color:#fff;padding:14px 20px;border-radius:12px;
+  margin:8px 0 16px 0;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin:12px 0}
+.card{border-radius:14px;padding:14px 16px;background:#1b1f27;color:#fff;
+  border-left:8px solid var(--c)}
+.card.roja{animation:pulso 1.6s infinite}
+.nombre{font-weight:700;font-size:1.1rem}
+.ubic{opacity:.75;font-size:.85rem;margin-bottom:6px}
+.nivel{font-size:2.4rem;font-weight:800;line-height:1.1}
+.barra{height:10px;background:#3a3f4b;border-radius:6px;overflow:hidden;margin:8px 0}
+.barra>div{height:100%;background:var(--c)}
+.est{font-weight:600}
+.ult{opacity:.6;font-size:.8rem;margin-top:4px}
+</style>
+"""
+st.markdown(ESTILO, unsafe_allow_html=True)
+
+
+def logo_html(ruta, alto=56):
+    ext = ruta.rsplit(".", 1)[-1].lower()
+    mime = {"jpg": "jpeg", "svg": "svg+xml"}.get(ext, ext)
+    with open(ruta, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+    return (f'<div style="background:#fff;border-radius:12px;padding:8px 14px;">'
+            f'<img src="data:image/{mime};base64,{b64}" style="height:{alto}px"></div>')
 
 
 def cargar():
@@ -72,13 +114,12 @@ def datos_reales(cid, df, ahora):
 
 def datos_simulados(cfg, ahora):
     nivel = cfg["nivel"]
-    # Pequeña variación para que los números se vean "vivos"
     deriva = 1.5 * math.sin(ahora.timestamp() / 600 + cfg["fase"] * 6.28)
     pct = min(max(nivel + deriva, 0), 100)
 
     retraso = cfg.get("sin_senal_min", 0)
     fin = ahora - pd.Timedelta(minutes=retraso)
-    tasa = nivel / cfg["horas"]  # % por hora
+    tasa = nivel / cfg["horas"]
     t_vaciado = fin - pd.Timedelta(hours=cfg["horas"])
     indice = pd.date_range(end=fin, periods=144, freq="10min")
     horas_desde = (indice - t_vaciado).total_seconds() / 3600
@@ -99,6 +140,27 @@ def hace(segundos):
     if segundos < 7200:
         return f"{int(segundos // 60)} min"
     return f"{int(segundos // 3600)} h"
+
+
+def tarjeta(cid, d):
+    if d["sin_senal"]:
+        color, clase = "#9e9e9e", ""
+    elif d["pct"] >= UMBRAL_ALERTA:
+        color, clase = "#e53935", "roja"
+    elif d["pct"] >= UMBRAL_ATENCION:
+        color, clase = "#fb8c00", ""
+    else:
+        color, clase = "#43a047", ""
+    etiqueta = cid if d["real"] else f"{cid} 🧪"
+    ancho = int(min(max(d["pct"], 0), 100))
+    return (f'<div class="card {clase}" style="--c:{color}">'
+            f'<div class="nombre">{etiqueta}</div>'
+            f'<div class="ubic">📍 {CANECAS[cid]["ubicacion"]}</div>'
+            f'<div class="nivel">{d["pct"]:.0f} %</div>'
+            f'<div class="barra"><div style="width:{ancho}%"></div></div>'
+            f'<div class="est">{d["estado"]}</div>'
+            f'<div class="ult">Última lectura hace {hace(d["segundos"])}</div>'
+            f'</div>')
 
 
 @st.fragment(run_every=10)
@@ -130,39 +192,42 @@ def panel(mostrar_ejemplo):
         d["sin_senal"] = d["segundos"] > SEGUNDOS_SIN_SENAL
         d["estado"] = estado(d["pct"], d["sin_senal"])
 
-    # ----- Resumen general -----
-    llenas = sum(1 for d in datos.values() if not d["sin_senal"] and d["pct"] >= UMBRAL_ALERTA)
-    atencion = sum(1 for d in datos.values()
-                   if not d["sin_senal"] and UMBRAL_ATENCION <= d["pct"] < UMBRAL_ALERTA)
-    sin_senal = sum(1 for d in datos.values() if d["sin_senal"])
-
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Canecas monitoreadas", len(datos))
-    m2.metric("🔴 Para vaciar", llenas)
-    m3.metric("🟠 En atención", atencion)
-    m4.metric("⚪ Sin señal", sin_senal)
-
+    # ----- Alerta de vaciado -----
     urgentes = sorted(
         [(cid, d) for cid, d in datos.items() if not d["sin_senal"] and d["pct"] >= UMBRAL_ALERTA],
         key=lambda x: -x[1]["pct"],
     )
     if urgentes:
-        st.error("🚨 Para vaciar ahora: " +
-                 " → ".join(f"{cid} ({d['pct']:.0f} %)" for cid, d in urgentes))
+        chips = "".join(
+            f'<div class="chip">{i}. {cid} · {CANECAS[cid]["ubicacion"]} · {d["pct"]:.0f} %</div>'
+            for i, (cid, d) in enumerate(urgentes, 1)
+        )
+        texto = ("1 caneca requiere vaciado" if len(urgentes) == 1
+                 else f"{len(urgentes)} canecas requieren vaciado")
+        st.markdown(
+            f'<div class="alerta"><h2>🚨 ALERTA DE VACIADO</h2>'
+            f'<div>{texto}. Ruta sugerida (la más llena primero):</div>'
+            f'<div class="ruta">{chips}</div></div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown('<div class="ok">✅ Todo en orden: ninguna caneca requiere vaciado</div>',
+                    unsafe_allow_html=True)
 
-    # ----- Tarjetas por caneca (las más llenas primero) -----
+    # ----- Resumen general -----
+    atencion = sum(1 for d in datos.values()
+                   if not d["sin_senal"] and UMBRAL_ATENCION <= d["pct"] < UMBRAL_ALERTA)
+    sin_senal = sum(1 for d in datos.values() if d["sin_senal"])
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Canecas monitoreadas", len(datos))
+    m2.metric("🔴 Para vaciar", len(urgentes))
+    m3.metric("🟠 En atención", atencion)
+    m4.metric("⚪ Sin señal", sin_senal)
+
+    # ----- Tarjetas (las más llenas primero) -----
     orden = sorted(datos.items(), key=lambda x: (x[1]["sin_senal"], -x[1]["pct"]))
-    columnas = st.columns(3)
-    for i, (cid, d) in enumerate(orden):
-        with columnas[i % 3]:
-            with st.container(border=True):
-                etiqueta = cid if d["real"] else f"{cid} 🧪"
-                st.markdown(f"**{etiqueta}**")
-                st.caption(f"📍 {CANECAS[cid]['ubicacion']}")
-                st.metric("Llenado", f"{d['pct']:.0f} %")
-                st.progress(int(min(max(d["pct"], 0), 100)))
-                st.write(d["estado"])
-                st.caption(f"Última lectura hace {hace(d['segundos'])}")
+    st.markdown('<div class="grid">' + "".join(tarjeta(cid, d) for cid, d in orden) + "</div>",
+                unsafe_allow_html=True)
 
     # ----- Detalle de una caneca -----
     st.subheader("Detalle e historial")
@@ -170,10 +235,18 @@ def panel(mostrar_ejemplo):
     d = datos[elegida]
     st.caption(f"📍 {CANECAS[elegida]['ubicacion']}  ·  Distancia al contenido: "
                f"{d['distancia']:.1f} cm  ·  Última lectura hace {hace(d['segundos'])}")
-    st.line_chart(d["hist"])
+    serie = d["hist"]
+    if d["real"]:
+        serie = serie.rolling(5, min_periods=1).median()  # suaviza el ruido
+    st.line_chart(serie)
+    st.caption(f"Actualizado: {ahora:%H:%M:%S}")
 
 
-st.title("🗑️ Monitor de canecas del campus")
+logo = logo_html(LOGO) if os.path.exists(LOGO) else ""
+st.markdown(
+    f'<div class="cabecera">{logo}<div class="titulo">🗑️ Monitor de canecas del campus</div></div>',
+    unsafe_allow_html=True,
+)
 mostrar_ejemplo = st.sidebar.checkbox("Mostrar canecas de ejemplo (simuladas)", value=True)
 st.sidebar.caption("Las canecas marcadas con 🧪 son simuladas, para mostrar cómo se "
                    "vería el sistema con varios puntos. C1 es la real.")
