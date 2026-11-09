@@ -20,7 +20,7 @@ DISTANCIA_LLENA = 4.9
 # C1 es la real (viene de la hoja). Las demás son de ejemplo.
 # piso, x, y = dónde se dibuja el punto en el esquema (cuadrícula de 830 x 700).
 CANECAS = {
-    "C1": {"ubicacion": "Hall de ingreso (planta 1)", "piso": 1, "x": 525, "y": 290,
+    "C1": {"ubicacion": "Hall de ingreso (planta 1)", "piso": 1, "x": 525, "y": 293,
            "real": True},
     "C2": {"ubicacion": "Exhibición (planta 1)", "piso": 1, "x": 505, "y": 200,
            "nivel": 92, "horas": 9, "fase": 0.2},
