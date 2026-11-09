@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 # ----- Configuración -----
-SHEET_ID = "PEGA_AQUI_EL_ID_DE_TU_HOJA"
+SHEET_ID = "1tWx9sWxbX7QzVMrPspHNbhCEZLFyItKxSFOwTxq9u0o"
 PESTANA = "lecturas"
 UMBRAL_ATENCION = 50       # % a partir del cual se muestra "atención"
 UMBRAL_ALERTA = 80         # % a partir del cual se muestra "llena"
