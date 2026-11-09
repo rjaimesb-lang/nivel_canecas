@@ -22,7 +22,7 @@ DISTANCIA_LLENA = 4.9
 CANECAS = {
     "C1": {"ubicacion": "Hall de ingreso (planta 1)", "piso": 1, "x": 525, "y": 297,
            "real": True},
-    "C2": {"ubicacion": "Exhibición (planta 1)", "piso": 1, "x": 525, "y": 148,
+    "C2": {"ubicacion": "Exhibición (planta 1)", "piso": 1, "x": 525, "y": 168,
            "nivel": 92, "horas": 9, "fase": 0.2},
     "C3": {"ubicacion": "Plaza (planta 1)", "piso": 1, "x": 420, "y": 440,
            "nivel": 67, "horas": 5, "fase": 0.5},
