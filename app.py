@@ -26,7 +26,7 @@ CANECAS = {
            "nivel": 92, "horas": 9, "fase": 0.2},
     "C3": {"ubicacion": "Plaza (planta 1)", "piso": 1, "x": 420, "y": 440,
            "nivel": 67, "horas": 5, "fase": 0.5},
-    "C7": {"ubicacion": "Hall de distribución (planta 1)", "piso": 1, "x": 330, "y": 255,
+    "C7": {"ubicacion": "Hall de distribución (planta 1)", "piso": 1, "x": 130, "y": 255,
            "nivel": 30, "horas": 4, "fase": 0.7},
     "C4": {"ubicacion": "Información (planta 4)", "piso": 4, "x": 470, "y": 290,
            "nivel": 18, "horas": 3, "fase": 0.8},
