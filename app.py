@@ -1,9 +1,11 @@
 import base64
+import html
 import math
 import os
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 # ----- Configuración -----
 SHEET_ID = "1tWx9sWxbX7QzVMrPspHNbhCEZLFyItKxSFOwTxq9u0o"
@@ -16,14 +18,93 @@ DISTANCIA_VACIA = 26.5     # mismas cifras de la calibración del ESP32
 DISTANCIA_LLENA = 4.9
 
 # C1 es la real (viene de la hoja). Las demás son de ejemplo.
+# piso, x, y = dónde se dibuja el punto en el esquema (cuadrícula de 830 x 700).
 CANECAS = {
-    "C1": {"ubicacion": "Bloque B, piso 2, junto a la cafetería", "real": True},
-    "C2": {"ubicacion": "Biblioteca, entrada principal", "nivel": 92, "horas": 9, "fase": 0.2},
-    "C3": {"ubicacion": "Cafetería central", "nivel": 67, "horas": 5, "fase": 0.5},
-    "C4": {"ubicacion": "Bloque A, hall de ingreso", "nivel": 18, "horas": 3, "fase": 0.8},
-    "C5": {"ubicacion": "Zona deportiva", "nivel": 41, "horas": 7, "fase": 0.1},
-    "C6": {"ubicacion": "Parqueadero norte", "nivel": 55, "horas": 8, "fase": 0.4,
-           "sin_senal_min": 47},
+    "C1": {"ubicacion": "Hall de ingreso (planta 1)", "piso": 1, "x": 455, "y": 285,
+           "real": True},
+    "C2": {"ubicacion": "Exhibición (planta 1)", "piso": 1, "x": 505, "y": 200,
+           "nivel": 92, "horas": 9, "fase": 0.2},
+    "C3": {"ubicacion": "Plaza (planta 1)", "piso": 1, "x": 420, "y": 440,
+           "nivel": 67, "horas": 5, "fase": 0.5},
+    "C7": {"ubicacion": "Hall de distribución (planta 1)", "piso": 1, "x": 330, "y": 255,
+           "nivel": 30, "horas": 4, "fase": 0.7},
+    "C4": {"ubicacion": "Información (planta 4)", "piso": 4, "x": 470, "y": 290,
+           "nivel": 18, "horas": 3, "fase": 0.8},
+    "C5": {"ubicacion": "Aula de eventos, ingreso (planta 4)", "piso": 4, "x": 590, "y": 285,
+           "nivel": 41, "horas": 7, "fase": 0.1},
+    "C6": {"ubicacion": "Salones de reuniones (planta 4)", "piso": 4, "x": 646, "y": 64,
+           "nivel": 55, "horas": 8, "fase": 0.4, "sin_senal_min": 47},
+    "C8": {"ubicacion": "Corredor de aulas (planta 4)", "piso": 4, "x": 165, "y": 500,
+           "nivel": 74, "horas": 6, "fase": 0.3},
+}
+
+# ----- Esquemas de las plantas (dibujo propio, simplificado) -----
+ESTILOS_FORMAS = {
+    "edificio": ("#1f2430", "#3a4154"),
+    "aula": ("#262c3a", "#4a5268"),
+    "local": ("#222836", "#4a5268"),
+    "hall": ("#2c3548", "#5a6682"),
+    "plaza": ("#1d2b27", "#35564b"),
+    "jardin": ("#1b2a1f", "#2f5a3a"),
+    "nucleo": ("#303746", "#59627a"),
+    "paso": ("#1a1e28", "#2c3344"),
+}
+
+PLANTAS = {
+    1: {
+        "titulo": "Planta 1",
+        "formas": [
+            ("266,45 540,28 540,144 266,206", "jardin"),
+            ("265,392 540,318 540,468 734,468 734,554 265,562", "plaza"),
+            ("176,227 540,144 540,310 266,387 176,389", "hall"),
+            ("71,229 176,229 176,558 71,569", "local"),
+            ("176,389 266,387 266,418 176,418", "nucleo"),
+            ("176,418 265,418 265,558 176,558", "local"),
+            ("540,27 702,4 702,76 540,76", "local"),
+            ("543,79 702,79 702,144 543,144", "paso"),
+            ("540,144 630,145 630,310 540,310", "nucleo"),
+            ("630,145 702,145 702,310 630,310", "local"),
+            ("540,310 702,310 702,389 540,389", "local"),
+        ],
+        "etiquetas": [
+            (123, 400, "Locales"), (221, 492, "Locales"),
+            (621, 44, "Locales"), (666, 232, "Locales"), (621, 354, "Locales"),
+            (585, 232, "Núcleo"), (400, 100, "Jardín"), (440, 520, "Plaza"),
+            (300, 305, "Hall de distribución"), (385, 335, "Hall de ingreso"),
+            (470, 238, "Exhibición"),
+        ],
+    },
+    4: {
+        "titulo": "Planta 4",
+        "formas": [
+            ("71,240 266,240 266,608 71,608", "edificio"),
+            ("71,245 151,245 151,304 71,304", "aula"),
+            ("71,304 151,304 151,363 71,363", "aula"),
+            ("71,363 151,363 151,421 71,421", "aula"),
+            ("71,475 151,475 151,544 71,544", "aula"),
+            ("179,428 266,428 266,481 179,481", "aula"),
+            ("179,481 266,481 266,534 179,534", "aula"),
+            ("179,534 266,534 266,587 179,587", "aula"),
+            ("187,247 259,247 259,274 187,274", "nucleo"),
+            ("179,320 266,320 266,382 179,382", "nucleo"),
+            ("266,240 547,162 547,320 266,400", "hall"),
+            ("543,38 738,9 738,240 543,240", "edificio"),
+            ("543,38 630,38 630,86 543,86", "aula"),
+            ("662,20 738,9 738,86 662,86", "aula"),
+            ("543,86 634,86 634,162 543,162", "nucleo"),
+            ("662,86 738,86 738,238 662,238", "aula"),
+            ("541,240 756,240 756,506 541,506", "edificio"),
+            ("630,284 734,284 734,479 630,479", "aula"),
+            ("543,324 630,324 630,464 543,464", "nucleo"),
+        ],
+        "etiquetas": [
+            (111, 278, "Aulas"), (111, 515, "Aulas"), (222, 508, "Aulas"),
+            (223, 355, "Baños"), (223, 262, "Núcleo"),
+            (400, 345, "Hall · Información"),
+            (586, 62, "Salón"), (700, 52, "Salón"), (588, 128, "Baños"),
+            (700, 165, "Eventos"), (682, 385, "Aula de eventos"), (587, 398, "Escaleras"),
+        ],
+    },
 }
 
 # Si pegaste el enlace completo, esto saca solo el ID
@@ -98,6 +179,16 @@ def estado(pct, sin_senal):
     return "🟢 Normal"
 
 
+def color_de(d):
+    if d["sin_senal"]:
+        return "#9e9e9e"
+    if d["pct"] >= UMBRAL_ALERTA:
+        return "#e53935"
+    if d["pct"] >= UMBRAL_ATENCION:
+        return "#fb8c00"
+    return "#43a047"
+
+
 def datos_reales(cid, df, ahora):
     d = df[df["caneca"] == cid]
     if d.empty:
@@ -143,14 +234,8 @@ def hace(segundos):
 
 
 def tarjeta(cid, d):
-    if d["sin_senal"]:
-        color, clase = "#9e9e9e", ""
-    elif d["pct"] >= UMBRAL_ALERTA:
-        color, clase = "#e53935", "roja"
-    elif d["pct"] >= UMBRAL_ATENCION:
-        color, clase = "#fb8c00", ""
-    else:
-        color, clase = "#43a047", ""
+    color = color_de(d)
+    clase = "roja" if (not d["sin_senal"] and d["pct"] >= UMBRAL_ALERTA) else ""
     etiqueta = cid if d["real"] else f"{cid} 🧪"
     ancho = int(min(max(d["pct"], 0), 100))
     return (f'<div class="card {clase}" style="--c:{color}">'
@@ -161,6 +246,77 @@ def tarjeta(cid, d):
             f'<div class="est">{d["estado"]}</div>'
             f'<div class="ult">Última lectura hace {hace(d["segundos"])}</div>'
             f'</div>')
+
+
+def svg_planta(piso, datos, ruta):
+    pl = PLANTAS[piso]
+    p = ['<rect width="830" height="700" rx="16" fill="#14171f"/>',
+         f'<text x="24" y="38" fill="#e6e9f2" font-size="22" font-weight="700">{pl["titulo"]}</text>']
+
+    for puntos, clase in pl["formas"]:
+        relleno, borde = ESTILOS_FORMAS[clase]
+        p.append(f'<polygon points="{puntos}" fill="{relleno}" stroke="{borde}" stroke-width="1.5"/>')
+    for x, y, texto in pl["etiquetas"]:
+        p.append(f'<text x="{x}" y="{y}" fill="#8b93a7" font-size="12" '
+                 f'text-anchor="middle">{texto}</text>')
+
+    # Ruta de vaciado (solo las urgentes de esta planta)
+    pts = [(CANECAS[c]["x"], CANECAS[c]["y"]) for c in ruta if CANECAS[c]["piso"] == piso]
+    if len(pts) > 1:
+        linea = " ".join(f"{x},{y}" for x, y in pts)
+        p.append(f'<polyline points="{linea}" fill="none" stroke="#ff8a80" '
+                 f'stroke-width="3" stroke-dasharray="8 6"/>')
+
+    # Canecas
+    for cid, d in datos.items():
+        cfg = CANECAS[cid]
+        if cfg["piso"] != piso:
+            continue
+        x, y = cfg["x"], cfg["y"]
+        color = color_de(d)
+        tip = html.escape(f"{cid} · {cfg['ubicacion']} · {d['pct']:.0f} % · "
+                          f"última lectura hace {hace(d['segundos'])}")
+        g = [f"<g><title>{tip}</title>"]
+        if not d["sin_senal"] and d["pct"] >= UMBRAL_ALERTA:
+            g.append(f'<circle cx="{x}" cy="{y}" r="11" fill="none" stroke="{color}" '
+                     f'stroke-width="3"><animate attributeName="r" from="11" to="32" '
+                     f'dur="1.6s" repeatCount="indefinite"/><animate attributeName="opacity" '
+                     f'from="0.9" to="0" dur="1.6s" repeatCount="indefinite"/></circle>')
+        dash = ' stroke-dasharray="3 3"' if d["sin_senal"] else ""
+        g.append(f'<circle cx="{x}" cy="{y}" r="11" fill="{color}" stroke="#ffffff" '
+                 f'stroke-width="2"{dash}/>')
+        if cid in ruta:
+            n = ruta.index(cid) + 1
+            g.append(f'<circle cx="{x - 14}" cy="{y - 14}" r="9" fill="#e53935" '
+                     f'stroke="#ffffff" stroke-width="1.5"/>'
+                     f'<text x="{x - 14}" y="{y - 10}" fill="#ffffff" font-size="11" '
+                     f'font-weight="700" text-anchor="middle">{n}</text>')
+        marca = "" if d["real"] else " 🧪"
+        valor = "sin señal" if d["sin_senal"] else f"{d['pct']:.0f} %"
+        g.append(f'<text x="{x + 17}" y="{y + 5}" fill="#ffffff" font-size="14" '
+                 f'font-weight="700" stroke="#14171f" stroke-width="4" '
+                 f'paint-order="stroke">{cid}{marca} · {valor}</text>')
+        g.append("</g>")
+        p.append("".join(g))
+
+    # Leyenda
+    items = [("#43a047", "Normal"), ("#fb8c00", "Atención"),
+             ("#e53935", "Llena"), ("#9e9e9e", "Sin señal")]
+    for i, (c, t) in enumerate(items):
+        lx = 24 + i * 130
+        p.append(f'<circle cx="{lx}" cy="675" r="7" fill="{c}"/>'
+                 f'<text x="{lx + 14}" y="680" fill="#8b93a7" font-size="13">{t}</text>')
+    return "".join(p)
+
+
+def vista_planta(piso, datos, ruta):
+    svg = svg_planta(piso, datos, ruta)
+    doc = ('<html><body style="margin:0;background:transparent;font-family:sans-serif">'
+           '<svg viewBox="0 0 830 700" xmlns="http://www.w3.org/2000/svg" '
+           'font-family="sans-serif" '
+           'style="width:100%;max-width:860px;display:block;margin:0 auto">'
+           f'{svg}</svg></body></html>')
+    components.html(doc, height=730)
 
 
 @st.fragment(run_every=10)
@@ -197,6 +353,7 @@ def panel(mostrar_ejemplo):
         [(cid, d) for cid, d in datos.items() if not d["sin_senal"] and d["pct"] >= UMBRAL_ALERTA],
         key=lambda x: -x[1]["pct"],
     )
+    ruta_ids = [cid for cid, _ in urgentes]
     if urgentes:
         chips = "".join(
             f'<div class="chip">{i}. {cid} · {CANECAS[cid]["ubicacion"]} · {d["pct"]:.0f} %</div>'
@@ -228,6 +385,15 @@ def panel(mostrar_ejemplo):
     orden = sorted(datos.items(), key=lambda x: (x[1]["sin_senal"], -x[1]["pct"]))
     st.markdown('<div class="grid">' + "".join(tarjeta(cid, d) for cid, d in orden) + "</div>",
                 unsafe_allow_html=True)
+
+    # ----- Ubicación en el edificio -----
+    st.subheader("🗺️ Ubicación en el edificio")
+    rojas = {p: sum(1 for c in ruta_ids if CANECAS[c]["piso"] == p) for p in PLANTAS}
+    piso = st.radio(
+        "Planta", list(PLANTAS.keys()), horizontal=True, key="piso_vista",
+        format_func=lambda p: f"Planta {p}" + (f"  ·  🔴 {rojas[p]}" if rojas[p] else ""),
+    )
+    vista_planta(piso, datos, ruta_ids)
 
     # ----- Detalle de una caneca -----
     st.subheader("Detalle e historial")
