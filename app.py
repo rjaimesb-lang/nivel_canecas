@@ -408,12 +408,27 @@ def panel(mostrar_ejemplo):
     st.caption(f"Actualizado: {ahora:%H:%M:%S}")
 
 
+# Oculta el menú, el pie de página y la barra superior de Streamlit
+st.markdown("""
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+.block-container {padding-top: 1.5rem;}
+</style>
+""", unsafe_allow_html=True)
+
 logo = logo_html(LOGO) if os.path.exists(LOGO) else ""
-st.markdown(
-    f'<div class="cabecera">{logo}<div class="titulo">🗑️ Monitor de canecas del campus</div></div>',
-    unsafe_allow_html=True,
-)
-mostrar_ejemplo = st.sidebar.checkbox("Mostrar canecas de ejemplo (simuladas)", value=True)
-st.sidebar.caption("Las canecas marcadas con 🧪 son simuladas, para mostrar cómo se "
-                   "vería el sistema con varios puntos. C1 es la real.")
+col_titulo, col_toggle = st.columns([4, 1])
+with col_titulo:
+    st.markdown(
+        f'<div class="cabecera">{logo}<div class="titulo">🗑️ Monitor de canecas del campus</div></div>',
+        unsafe_allow_html=True,
+    )
+with col_toggle:
+    mostrar_ejemplo = st.toggle("🧪 Canecas de ejemplo", value=True)
+
 panel(mostrar_ejemplo)
+
+st.caption("🧪 Las canecas marcadas así son simuladas, para mostrar cómo se vería el sistema "
+           "con varios puntos. C1 es la real.")
